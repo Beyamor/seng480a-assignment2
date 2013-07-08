@@ -79,6 +79,31 @@ void InitMyAlloc( int HeapSize ) {
     maxAddr = minAddr = malloc(4);  // minimal small request to get things started
 }
 
+/*
+ * Check whether some bit is non-zero
+ * The bit parameter is 1-indexed and relative to the right of the value.
+ */
+int isNonzeroBit(int bit, HeapPointer value) {
+
+	return (value & (1 << (bit - 1)));
+}
+
+/*
+ * Check whether a value on the stack is a heap pointer
+ */
+int isHeapPointer(HeapPointer pointer) {
+
+	// The first three bits should be zero
+	if (isNonzeroBit(1, pointer) || isNonzeroBit(2, pointer) /*|| isNonzeroBit(3, pointer)*/)
+		return 0;
+
+	// The pointer should be in bounds
+	if (pointer < (uint32_t)HeapStart || pointer > (uint32_t)HeapEnd)
+		return 0;
+
+	return 1;
+}
+
 /* Returns a pointer to a block with at least size bytes available,
    and initialized to hold zeros.
    Notes:
@@ -173,6 +198,15 @@ void *MyHeapAlloc( int size ) {
             fprintf(stdout, "* free list block of size %d split into %d + %d\n",
                 diff+minSizeNeeded, minSizeNeeded, diff);
 
+	// These, obviously, should always be heap pointers
+	/*
+	printf("returning %p (min is %p and max is %p) - is that a heap pointer? %i\n",
+			newBlockPtr,
+			HeapStart,
+			HeapEnd,
+			isHeapPointer((HeapPointer)((uint8_t*)blockPtr + sizeof(blockPtr->size))));
+	*/
+
     }
     blockPtr->offsetToNextBlock = 0;  /* remove this info from the returned block */
     totalBytesRequested += minSizeNeeded;
@@ -210,38 +244,36 @@ static void MyHeapFree(void *p) {
 }
 
 /*
- * Check whether some bit is non-zero
- * The bit parameter is 1-indexed and relative to the right of the value.
- */
-int isNonzeroBit(int bit, HeapPointer value) {
-
-	return (value & (1 << (bit - 1)));
-}
-
-/*
- * Check whether a value on the stack is a heap pointer
- */
-int isHeapPointer(DataItem* stackItem) {
-
-	HeapPointer pointer = stackItem->pval;
-
-	// The first three bits should be zero
-	if (isNonzeroBit(1, pointer) || isNonzeroBit(2, pointer) || isNonzeroBit(3, pointer))
-		return 0;
-
-	// The pointer should be in bounds
-	if (pointer < (uint32_t)HeapStart || pointer > (uint32_t)HeapEnd)
-		return 0;
-
-	return 1;
-}
-
-/*
  * The number of items in the JVM stack
  */
 int jvmStackHeight() {
 
 	return (int)(JVM_Top - JVM_Stack);
+}
+
+/*
+ * Grabs the kind of some heap pointer
+ */
+void readKind(HeapPointer pointer, char kind[5]) {
+
+	uint32_t kindVal = *((uint32_t*)pointer);
+	printf("kindVal is %x\n", kindVal);
+	sprintf(kind, "%c%c%c%c",
+			(kindVal >> 24) & 0XFF,
+			(kindVal >> 16) & 0XFF,
+			(kindVal >> 8) & 0XFF,
+			(kindVal >> 0) & 0XFF);
+}
+
+/*
+ * Prints a DataItem
+ */
+void printDataItem(DataItem* item) {
+
+	printf("{i: %i, p: %p (%p)}\n",
+			item->ival,
+			REAL_HEAP_POINTER(item->pval),
+			(void*)item->pval);
 }
 
 
@@ -256,10 +288,25 @@ void gc() {
     DataItem* stackPointer = JVM_Stack;
     while (stackPointer != JVM_Top) {
 
-	    printf("%p is %sa heap pointer\n",
-			    stackPointer,
-			    (isHeapPointer(stackPointer)? "not ":""));
+	    HeapPointer heapPointer = REAL_HEAP_POINTER(stackPointer->pval);
+	    int wasHeapPointer = isHeapPointer(heapPointer);
 
+	    printf("heapPointer is %p and HeapStart is %p and HeapEnd is %p\n",
+			    (void*)heapPointer, HeapStart, HeapEnd);
+
+	    printDataItem(stackPointer);
+
+	    printf("%p is %sa heap pointer\n",
+			    (void*)heapPointer,
+			    (wasHeapPointer? "":"not "));
+
+	    if (wasHeapPointer) {
+
+		    char kind[5];
+		    readKind(heapPointer, kind);
+		    printf("Kind is %s\n", kind);
+	    }
+	    
 	    ++stackPointer;
     }
 }
