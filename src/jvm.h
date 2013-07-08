@@ -179,6 +179,11 @@ extern DataItem *JVM_Top;
 extern void *HeapReferencePointer;
 extern void *Fake_System_Out;
 
+// Man, dunno if there's a better way to do this,
+// but to get the root set, we need to be able to examine the stack
+// and that, I think, requires knowing how big it is?
+extern DataItem *JVM_Stack;
+
 extern void JVM_Init( int stackSize );
 extern void JVM_Push( uint32_t x );
 extern void JVM_PushFloat( float x );

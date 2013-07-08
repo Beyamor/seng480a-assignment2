@@ -30,6 +30,7 @@
 #include "ClassFileFormat.h"
 #include "TraceOptions.h"
 #include "MyAlloc.h"
+#include "jvm.h"
 
 /* we will never allocate a block smaller than this */
 #define MINBLOCKSIZE 12
@@ -208,6 +209,41 @@ static void MyHeapFree(void *p) {
     offsetToFirstBlock = p1 - HeapStart;
 }
 
+/*
+ * Check whether some bit is non-zero
+ * The bit parameter is 1-indexed and relative to the right of the value.
+ */
+int isNonzeroBit(int bit, HeapPointer value) {
+
+	return (value & (1 << (bit - 1)));
+}
+
+/*
+ * Check whether a value on the stack is a heap pointer
+ */
+int isHeapPointer(DataItem* stackItem) {
+
+	HeapPointer pointer = stackItem->pval;
+
+	// The first three bits should be zero
+	if (isNonzeroBit(1, pointer) || isNonzeroBit(2, pointer) || isNonzeroBit(3, pointer))
+		return 0;
+
+	// The pointer should be in bounds
+	if (pointer < (uint32_t)HeapStart || pointer > (uint32_t)HeapEnd)
+		return 0;
+
+	return 1;
+}
+
+/*
+ * The number of items in the JVM stack
+ */
+int jvmStackHeight() {
+
+	return (int)(JVM_Top - JVM_Stack);
+}
+
 
 /* This implements garbage collection.
    It should be called when
@@ -216,11 +252,15 @@ static void MyHeapFree(void *p) {
 */
 void gc() {
     gcCount++;
-    fprintf(stderr, "garbage collection is unimplemented\n");
-    // The following lines of code exist only so that the compiler does not
-    // generate a warning message that MyHeapFree is defined but not used.
-    if (0) {
-    	MyHeapFree(NULL);
+
+    DataItem* stackPointer = JVM_Stack;
+    while (stackPointer != JVM_Top) {
+
+	    printf("%p is %sa heap pointer\n",
+			    stackPointer,
+			    (isHeapPointer(stackPointer)? "not ":""));
+
+	    ++stackPointer;
     }
 }
 
