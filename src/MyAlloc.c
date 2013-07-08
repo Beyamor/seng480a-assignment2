@@ -265,6 +265,23 @@ void readKind(HeapPointer pointer, char kind[5]) {
 			(kindVal >> 0) & 0XFF);
 }
 
+uint32_t* blockSizePtrFromHeapPtr(HeapPointer heapPointer) {
+
+	// Uh, let's see
+	// Move back from heap pointer the size of, uh, the size field
+	// then return that pointer interpreted as a pointer to the size field
+	return (uint32_t*)((uint8_t*)heapPointer - sizeof(uint32_t));
+}
+
+/*
+ * Marks a block as live
+ */
+void mark(HeapPointer heapPointer) {
+
+	// Set the sign bit of the thing's size
+	*blockSizePtrFromHeapPtr(heapPointer) |= 0x800000;
+}
+
 /*
  * Prints a DataItem
  */
@@ -305,6 +322,7 @@ void gc() {
 		    char kind[5];
 		    readKind(heapPointer, kind);
 		    printf("Kind is %s\n", kind);
+		    mark(heapPointer);
 	    }
 	    
 	    ++stackPointer;
