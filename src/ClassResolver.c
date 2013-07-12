@@ -317,7 +317,7 @@ ClassType *LoadClass( char *cname ) {
     
     getNumClassVars(cf, &numClassVars, &numInstVars);
     // The class itself would be allocated in the Method Area of a real JVM.
-    ct1 = SafeMalloc(sizeof(ClassType)+(numClassVars-1)*sizeof(DataItem));
+    ct1 = MyHeapAlloc(sizeof(ClassType)+(numClassVars-1)*sizeof(DataItem));
     ct1->kind = CODE_CLAS;
     ct1->typeDescriptor = SafeStrdup(cname);
     ct1->cf = cf;
