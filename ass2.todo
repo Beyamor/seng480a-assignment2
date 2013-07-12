@@ -1,0 +1,17 @@
+[] Follow root pointers to mark all active blocks in JVM Heap
+[] Sweep over the heap and return unmarked blocks to the free list
+[] If 2 blocks in free list adjacent -> recombine into a single block
+[] Use Conservative GC because Heap refs datatype info is hard to obtain
+    [] Use stringent checks on all values in JVM stack
+    [] If they pass the test, assume they are pointers
+[] Local C variables in JVM may contain root pointers
+    // x = JVM_PopReference(); 
+    // y = MyHeapAlloc(12)
+    // x has to be considered root if GC is started
+    // MyHeapAlloc should precede the other
+    [] Visually inspect calls to MyHeapAlloc to verify situation not present
+[] gc function updates variables
+    [] gcCount -> each time gc occurs
+    [] totalBytesRecovered -> total number of bytes to freelist by all GC's
+    [] totalBlocksRecovered -> count of the blocks discovered unused in all GC's
+
