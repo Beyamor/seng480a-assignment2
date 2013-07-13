@@ -302,8 +302,8 @@ void printDataItem(DataItem* item) {
 void gc() {
     gcCount++;
 
-    DataItem* stackPointer = JVM_Stack;
-    while (stackPointer != JVM_Top) {
+    DataItem* stackPointer = JVM_Stack++; // skip the bottom of the stack (deadbeef)
+    while (stackPointer <= JVM_Top) {
 
 	    HeapPointer heapPointer = REAL_HEAP_POINTER(stackPointer->pval);
 	    int wasHeapPointer = isHeapPointer(heapPointer);
