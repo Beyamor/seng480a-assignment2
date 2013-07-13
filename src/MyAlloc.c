@@ -293,9 +293,10 @@ void sweep() {
             MyHeapFree(heapPointer);    
         }
         else {
-            heapPointer->size |= MARK_SIZE_BIT;
+            heapPointer->size & ~MARK_SIZE_BIT;
         }
-        ++heapPointer;
+        // heapPointer = heapPointer + size + offset + data
+        heapPointer = heapPointer + sizeof(uint32_t) + sizeof(int32_t) + heapPointer->size;
     }
 }
 
