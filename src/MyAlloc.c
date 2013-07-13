@@ -37,6 +37,7 @@
 
 #define BLOCK_SIZE_SIZE sizeof(uint32_t)
 #define BLOCK_OFFSET_SIZE sizeof(int32_t)
+#define MARK_SIZE_BIT 0x800000
 
 typedef struct FreeStorageBlock {
     uint32_t size;  /* size in bytes of this block of storage */
@@ -347,7 +348,24 @@ uint32_t* blockSizePtrFromHeapPtr(HeapPointer heapPointer) {
 void mark(HeapPointer heapPointer) {
 
 	// Set the sign bit of the thing's size
-	*blockSizePtrFromHeapPtr(heapPointer) |= 0x800000;
+	*blockSizePtrFromHeapPtr(heapPointer) |= MARK_SIZE_BIT;
+}
+
+/*
+ * Sweeps marked blocks of heap into Free List
+ */
+void sweep() {
+    FreeStorageBlock* heapPointer = HeapStart;
+    while (heapPointer < HeapEnd) {
+        if (heapPointer->size & MARK_SIZE_BIT == 0) {
+            MyHeapFree(heapPointer);    
+        }
+        else {
+            heapPointer->size & ~MARK_SIZE_BIT;
+        }
+        // heapPointer = heapPointer + size + offset + data
+        heapPointer = heapPointer + sizeof(uint32_t) + sizeof(int32_t) + heapPointer->size;
+    }
 }
 
 /*
@@ -396,6 +414,7 @@ void gc() {
 	    
 	    ++stackPointer;
     }
+    sweep();
 }
 
 
