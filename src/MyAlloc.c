@@ -287,16 +287,19 @@ void mark(HeapPointer heapPointer) {
  * Sweeps marked blocks of heap into Free List
  */
 void sweep() {
+    printf("smee\n");
     FreeStorageBlock* heapPointer = HeapStart;
     while (heapPointer < HeapEnd) {
         if (heapPointer->size & MARK_SIZE_BIT == 0) {
+            printf("sweep-free\n");
             MyHeapFree(heapPointer);    
         }
         else {
-            heapPointer->size & ~MARK_SIZE_BIT;
+            heapPointer->size = heapPointer->size & ~MARK_SIZE_BIT;
+            printf("heapstart. %i , heapEnd: %i , heapPointer: %i \n",HeapStart, HeapEnd, heapPointer);
+            printf("heapPointer->size %u ", heapPointer->size);
         }
-        // heapPointer = heapPointer + size + offset + data
-        heapPointer = heapPointer + sizeof(uint32_t) + sizeof(int32_t) + heapPointer->size;
+        heapPointer = heapPointer + heapPointer->size;
     }
 }
 
