@@ -86,9 +86,17 @@ void InitMyAlloc( int HeapSize ) {
 /*
  * Grabs the kind of some heap pointer
  */
+uint32_t getKind(HeapPointer pointer) {
+
+	return *((uint32_t*)REAL_HEAP_POINTER(pointer));
+}
+
+/*
+ * Reads the kind of some heap pointer into a string
+ */
 void readKind(HeapPointer pointer, char kind[5]) {
 
-	uint32_t kindVal = *((uint32_t*)REAL_HEAP_POINTER(pointer));
+	uint32_t kindVal = getKind(pointer);
 	sprintf(kind, "%c%c%c%c",
 			(kindVal >> 24) & 0XFF,
 			(kindVal >> 16) & 0XFF,
@@ -343,12 +351,47 @@ uint32_t* blockSizePtrFromHeapPtr(HeapPointer heapPointer) {
 }
 
 /*
- * Marks a block as live
+ * Checks if the mark bit is set
+ */
+int markBitIsSet(HeapPointer heapPointer) {
+
+	return *blockSizePtrFromHeapPtr(heapPointer) & MARK_SIZE_BIT;
+}
+
+/*
+ * Sets the mark bit
+ */
+void setMarkBit(HeapPointer heapPointer) {
+
+	*blockSizePtrFromHeapPtr(heapPointer) |= MARK_SIZE_BIT;
+}
+
+/*
+ * Marks a block as live and recurses to other heap references.
  */
 void mark(HeapPointer heapPointer) {
 
-	// Set the sign bit of the thing's size
-	*blockSizePtrFromHeapPtr(heapPointer) |= MARK_SIZE_BIT;
+	// Okay. If that thing is not marked
+	if (!markBitIsSet(heapPointer)) {
+
+		setMarkBit(heapPointer);
+
+		// and recurse
+		switch(getKind(heapPointer)) {
+			case CODE_ARRA:
+			case CODE_ARRS:
+			case CODE_CLAS:
+			case CODE_INST:
+			case CODE_STRG:
+			case CODE_SBLD: {
+
+				char kindString[5];
+				readKind(heapPointer, kindString);
+				printf("Unhandled kind: %s\n", kindString);
+				exit(0);
+			}
+		}
+	}
 }
 
 /*
