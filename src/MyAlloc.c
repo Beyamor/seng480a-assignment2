@@ -35,7 +35,10 @@
 /* we will never allocate a block smaller than this */
 #define MINBLOCKSIZE 12
 
+#define BLOCK_SIZE_SIZE sizeof(uint32_t)
+#define BLOCK_OFFSET_SIZE sizeof(int32_t)
 #define MARK_SIZE_BIT 0x800000
+
 typedef struct FreeStorageBlock {
     uint32_t size;  /* size in bytes of this block of storage */
     int32_t  offsetToNextBlock;
@@ -81,12 +84,89 @@ void InitMyAlloc( int HeapSize ) {
 }
 
 /*
+ * Grabs the kind of some heap pointer
+ */
+void readKind(HeapPointer pointer, char kind[5]) {
+
+	uint32_t kindVal = *((uint32_t*)REAL_HEAP_POINTER(pointer));
+	sprintf(kind, "%c%c%c%c",
+			(kindVal >> 24) & 0XFF,
+			(kindVal >> 16) & 0XFF,
+			(kindVal >> 8) & 0XFF,
+			(kindVal >> 0) & 0XFF);
+}
+
+/*
  * Check whether some bit is non-zero
  * The bit parameter is 1-indexed and relative to the right of the value.
  */
-int isNonzeroBit(int bit, HeapPointer value) {
+int isNonzeroBit(int bit, uint8_t* value) {
 
-	return (value & (1 << (bit - 1)));
+	return ((uintptr_t)value & (1 << (bit - 1)));
+}
+
+/*
+ * Gets the heap pointer from a block pointer
+ */
+uint8_t* heapPointerFromBlockPointer(uint8_t* blockPointer) {
+
+    return blockPointer + BLOCK_SIZE_SIZE;
+}
+
+/*
+ * Gets size pointer from block pointer
+ */
+uint32_t* blockSizePtrFromBlockPointer(uint8_t* blockPointer) {
+    return ((uint32_t*)blockPointer);
+}
+
+/*
+ * Gets the block size from a block pointer
+ */
+uint32_t blockSizeFromBlockPointer(uint8_t* blockPointer) {
+
+	return *blockSizePtrFromBlockPointer(blockPointer);
+}
+
+
+/*
+ * Check whether a pointer actually points to a value in the heap
+ */
+int pointsToHeapObject(uint8_t* possibleHeapPointer) {
+
+	uint8_t* blockPointer = HeapStart;
+	uint8_t* heapPointer;
+
+	while (blockPointer < HeapEnd) {
+
+		heapPointer = heapPointerFromBlockPointer(blockPointer);
+
+		// if they match, bingo, we found it
+		if (heapPointer == possibleHeapPointer) {
+			/*printf("hey, possibleHeapPointer %p found with a block size of %i!\n",
+					possibleHeapPointer,
+					blockSizeFromBlockPointer(blockPointer));*/
+			return 1;
+		}
+
+		// if the heap pointer is past the pointer we're looking for,
+		// we know we won't find a match
+		if (heapPointer > possibleHeapPointer) {
+			/*printf("whoa, not gunna find %p from %p (block size is %i)\n",
+					possibleHeapPointer,
+					heapPointer,
+					blockSizeFromBlockPointer(blockPointer));*/
+			return 0;
+		}
+
+		/*printf("Cool. Well, moving on to the next block, skipping block size of %i at %p\n",
+				blockSizeFromBlockPointer(blockPointer),
+				blockPointer);*/
+		blockPointer += blockSizeFromBlockPointer(blockPointer);
+	}
+
+	/*printf("yikes. reached the end of the heap looking for %p\n", possibleHeapPointer);*/
+	return 0;
 }
 
 /*
@@ -94,13 +174,25 @@ int isNonzeroBit(int bit, HeapPointer value) {
  */
 int isHeapPointer(HeapPointer pointer) {
 
+	uint8_t* realHeapPointer = (uint8_t*)REAL_HEAP_POINTER(pointer);
+
 	// The first three bits should be zero
-	if (isNonzeroBit(1, pointer) || isNonzeroBit(2, pointer) /*|| isNonzeroBit(3, pointer)*/)
+	if (isNonzeroBit(1, realHeapPointer) || isNonzeroBit(2, realHeapPointer) /*|| isNonzeroBit(3, pointer)*/) {
+		/*printf("Bit check failed\n");*/
 		return 0;
+	}
 
 	// The pointer should be in bounds
-	if (pointer < (uint32_t)HeapStart || pointer > (uint32_t)HeapEnd)
+	if (realHeapPointer < HeapStart || realHeapPointer > HeapEnd) {
+		/*printf("Heap bounds check failed\n");*/
 		return 0;
+	}
+
+	// And then, that value should actually point to a heap object
+	if (!pointsToHeapObject(realHeapPointer)) {
+		/*printf("Heap object check failed\n");*/
+		return 0;
+	}
 
 	return 1;
 }
@@ -200,14 +292,12 @@ void *MyHeapAlloc( int size ) {
                 diff+minSizeNeeded, minSizeNeeded, diff);
 
 	// These, obviously, should always be heap pointers
-	/*
-	printf("returning %p (min is %p and max is %p) - is that a heap pointer? %i\n",
+	HeapPointer heapPointer = MAKE_HEAP_REFERENCE((uint8_t*)blockPtr + sizeof(blockPtr->size));
+	printf("returning %p (min is %p and max is %p) - is that a heap pointer? %s\n",
 			newBlockPtr,
 			HeapStart,
 			HeapEnd,
-			isHeapPointer((HeapPointer)((uint8_t*)blockPtr + sizeof(blockPtr->size))));
-	*/
-
+			(isHeapPointer(heapPointer)? "yes" : "no"));
     }
     blockPtr->offsetToNextBlock = 0;  /* remove this info from the returned block */
     totalBytesRequested += minSizeNeeded;
@@ -252,26 +342,12 @@ int jvmStackHeight() {
 	return (int)(JVM_Top - JVM_Stack);
 }
 
-/*
- * Grabs the kind of some heap pointer
- */
-void readKind(HeapPointer pointer, char kind[5]) {
-
-	uint32_t kindVal = *((uint32_t*)pointer);
-	printf("kindVal is %x\n", kindVal);
-	sprintf(kind, "%c%c%c%c",
-			(kindVal >> 24) & 0XFF,
-			(kindVal >> 16) & 0XFF,
-			(kindVal >> 8) & 0XFF,
-			(kindVal >> 0) & 0XFF);
-}
-
 uint32_t* blockSizePtrFromHeapPtr(HeapPointer heapPointer) {
 
 	// Uh, let's see
 	// Move back from heap pointer the size of, uh, the size field
 	// then return that pointer interpreted as a pointer to the size field
-	return (uint32_t*)((uint8_t*)heapPointer - sizeof(uint32_t));
+	return (uint32_t*)((uint8_t*)REAL_HEAP_POINTER(heapPointer) - sizeof(uint32_t));
 }
 
 /*
@@ -283,23 +359,27 @@ void mark(HeapPointer heapPointer) {
 	*blockSizePtrFromHeapPtr(heapPointer) |= MARK_SIZE_BIT;
 }
 
-/*
- * Sweeps marked blocks of heap into Free List
- */
-void sweep() {
-    printf("smee\n");
-    FreeStorageBlock* heapPointer = HeapStart;
-    while (heapPointer < HeapEnd) {
-        if (heapPointer->size & MARK_SIZE_BIT == 0) {
-            printf("sweep-free\n");
-            MyHeapFree(heapPointer);    
+/* 
+ * Sweeps marked blocks of heap into Free List 
+ */ 
+void sweep() { 
+    uint8_t* blockPointer = HeapStart;
+    uint8_t* heapPointer;
+
+    while (blockPointer < HeapEnd) {
+        heapPointer = heapPointerFromBlockPointer(blockPointer);
+        if (*blockSizePtrFromBlockPointer(blockPointer) & MARK_SIZE_BIT == 0) {
+            printf("sweepfree\n");
+            MyHeapFree(heapPointer);
         }
         else {
-            heapPointer->size = heapPointer->size & ~MARK_SIZE_BIT;
-            printf("heapstart. %i , heapEnd: %i , heapPointer: %i \n",HeapStart, HeapEnd, heapPointer);
-            printf("heapPointer->size %u ", heapPointer->size);
+            printf("notfree\n");
+            *blockSizePtrFromBlockPointer(blockPointer) = *blockSizePtrFromBlockPointer(blockPointer) & ~MARK_SIZE_BIT;
+            printf("aftersmee\n");
+            //printf("heapstart. %i , heapEnd: %i , heapPointer: %i \n",HeapStart, HeapEnd, heapPointer); 
+           // printf("heapPointer->size %u ", heapPointer.size); 
         }
-        heapPointer = heapPointer + heapPointer->size;
+        blockPointer += blockSizeFromBlockPointer(blockPointer);
     }
 }
 
@@ -308,10 +388,10 @@ void sweep() {
  */
 void printDataItem(DataItem* item) {
 
-	printf("{i: %i, p: %p (%p)}\n",
+	printf("{i: %i, p: %p (0x%x)}\n",
 			item->ival,
 			REAL_HEAP_POINTER(item->pval),
-			(void*)item->pval);
+			item->pval);
 }
 
 
@@ -323,19 +403,20 @@ void printDataItem(DataItem* item) {
 void gc() {
     gcCount++;
 
-    DataItem* stackPointer = JVM_Stack;
-    while (stackPointer != JVM_Top) {
+    DataItem* stackPointer = JVM_Stack + 1; // skip the bottom of the stack (deadbeef)
+    while (stackPointer <= JVM_Top) {
 
-	    HeapPointer heapPointer = REAL_HEAP_POINTER(stackPointer->pval);
+	    printf("stack pointer is %p, stack start is %p, top is %p\n", stackPointer, JVM_Stack, JVM_Top);
+	    HeapPointer heapPointer = stackPointer->pval;
 	    int wasHeapPointer = isHeapPointer(heapPointer);
 
 	    printf("heapPointer is %p and HeapStart is %p and HeapEnd is %p\n",
-			    (void*)heapPointer, HeapStart, HeapEnd);
+			    REAL_HEAP_POINTER(heapPointer), HeapStart, HeapEnd);
 
 	    printDataItem(stackPointer);
 
 	    printf("%p is %sa heap pointer\n",
-			    (void*)heapPointer,
+			    REAL_HEAP_POINTER(heapPointer),
 			    (wasHeapPointer? "":"not "));
 
 	    if (wasHeapPointer) {
