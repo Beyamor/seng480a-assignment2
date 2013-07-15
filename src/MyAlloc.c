@@ -434,21 +434,25 @@ void mark(HeapPointer heapPointer) {
 
 				ClassInstance instance = *((ClassInstance*)REAL_HEAP_POINTER(heapPointer));
 
-				// Mark the thing's class
-				markClassType(instance.thisClass);
+				// TODO figure out why we might not have a thisClass
+				if (instance.thisClass) {
 
-				// Then mark all of the instance's references
-				int index = 0;
-				for (index = 0; index < instance.thisClass->numInstanceFields; ++index) {
+					// Mark the thing's class
+					markClassType(instance.thisClass);
 
-					// If any look like they might be references
-					HeapPointer heapPointer = instance.instField[index].pval;
-					if (isHeapPointer(heapPointer)) {
+					// Then mark all of the instance's references
+					int index = 0;
+					for (index = 0; index < instance.thisClass->numInstanceFields; ++index) {
 
-						// mark them
-						mark(heapPointer);
+						// If any look like they might be references
+						HeapPointer heapPointer = instance.instField[index].pval;
+						if (isHeapPointer(heapPointer)) {
+
+							// mark them
+							mark(heapPointer);
+						}
+
 					}
-
 				}
 
 			} break;
