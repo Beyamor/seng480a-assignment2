@@ -6,5 +6,7 @@ public class HelloStrings {
 
 			StringBuilder sb = new StringBuilder();
 		}
+
+		System.out.println("Did the strings");
 	}
 }

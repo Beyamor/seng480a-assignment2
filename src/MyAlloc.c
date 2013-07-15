@@ -516,7 +516,7 @@ void sweep() {
     uint8_t* blockPointer = HeapStart;
     HeapPointer heapPointer;
 
-    while (blockPointer < HeapEnd) {
+    while (blockPointer + blockSizeFromBlockPointer(blockPointer) < HeapEnd) {
         heapPointer = heapPointerFromBlockPointer(blockPointer);
 
 	char kind[5];
