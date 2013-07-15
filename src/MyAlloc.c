@@ -114,11 +114,19 @@ int isNonzeroBit(int bit, uint8_t* value) {
 }
 
 /*
- * Gets the heap pointer from a block pointer
+ * Gets the real heap pointer from a block pointer
  */
-uint8_t* heapPointerFromBlockPointer(uint8_t* blockPointer) {
+uint8_t* realHeapPointerFromBlockPointer(uint8_t* blockPointer) {
 
     return blockPointer + BLOCK_SIZE_SIZE;
+}
+
+/*
+ * Gets the heap pointer from a block pointer
+ */
+HeapPointer heapPointerFromBlockPointer(uint8_t* blockPointer) {
+
+	return MAKE_HEAP_REFERENCE(realHeapPointerFromBlockPointer(blockPointer));
 }
 
 /*
@@ -133,7 +141,7 @@ uint32_t* blockSizePtrFromBlockPointer(uint8_t* blockPointer) {
  */
 uint32_t blockSizeFromBlockPointer(uint8_t* blockPointer) {
 
-	return *blockSizePtrFromBlockPointer(blockPointer);
+	return *blockSizePtrFromBlockPointer(blockPointer) & ~MARK_SIZE_BIT;
 }
 
 
@@ -147,7 +155,7 @@ int pointsToHeapObject(uint8_t* possibleHeapPointer) {
 
 	while (blockPointer < HeapEnd) {
 
-		heapPointer = heapPointerFromBlockPointer(blockPointer);
+		heapPointer = realHeapPointerFromBlockPointer(blockPointer);
 
 		// if they match, bingo, we found it
 		if (heapPointer == possibleHeapPointer) {
@@ -334,6 +342,9 @@ static void MyHeapFree(void *p) {
     blockSize = *(uint32_t*)p1;
     if (blockSize < MINBLOCKSIZE || (p1 + blockSize) >= HeapEnd || (blockSize & 3) != 0) {
         fprintf(stderr, "bad call to MyHeapFree -- invalid block\n");
+	    if (blockSize < MINBLOCKSIZE) printf("\tblock size %i is smaller than %i\n", blockSize, MINBLOCKSIZE);
+	    if (p1 + blockSize >= HeapEnd) printf("\t%p (size %i) is past the end of the heap %p\n", p1 + blockSize, blockSize, HeapEnd);
+	    if (blockSize & 3 != 0) printf("\t block size is a bad multiple %i\n", blockSize & 3);
         exit(1);
     }
     /* link the block into the free list at the front */
@@ -373,6 +384,15 @@ void setMarkBit(HeapPointer heapPointer) {
 
 	*blockSizePtrFromHeapPtr(heapPointer) |= MARK_SIZE_BIT;
 }
+
+/*
+ * Unsets the mark bit
+ */
+void unsetMarkBit(HeapPointer heapPointer) {
+
+	*blockSizePtrFromHeapPtr(heapPointer) &= ~MARK_SIZE_BIT;
+}
+
 
 void mark(HeapPointer heapPointer);
 
@@ -485,21 +505,29 @@ void mark(HeapPointer heapPointer) {
  */ 
 void sweep() { 
     uint8_t* blockPointer = HeapStart;
-    uint8_t* heapPointer;
+    HeapPointer heapPointer;
 
     while (blockPointer < HeapEnd) {
         heapPointer = heapPointerFromBlockPointer(blockPointer);
-        if ((*blockSizePtrFromBlockPointer(blockPointer) & MARK_SIZE_BIT) == 0) {
-            printf("sweepfree\n");
-            MyHeapFree(heapPointer);
+
+	char kind[5];
+	readKind(heapPointer, kind);
+
+	// TODO actually get from instance to class
+        if (!markBitIsSet(heapPointer) && getKind(heapPointer) != CODE_CLAS) {
+
+		printf("freeing a %s at %p\n", kind, blockPointer);
+
+		if (getKind(heapPointer) == CODE_CLAS)
+			printf("holy h*ck, we're freeing a class\n");
+
+            MyHeapFree(REAL_HEAP_POINTER(heapPointer));
         }
         else {
-            printf("notfree\n");
-            *blockSizePtrFromBlockPointer(blockPointer) = *blockSizePtrFromBlockPointer(blockPointer) & ~MARK_SIZE_BIT;
-            printf("aftersmee\n");
-            //printf("heapstart. %i , heapEnd: %i , heapPointer: %i \n",HeapStart, HeapEnd, heapPointer); 
-           // printf("heapPointer->size %u ", heapPointer.size); 
+
+	    unsetMarkBit(heapPointer);
         }
+
         blockPointer += blockSizeFromBlockPointer(blockPointer);
     }
 }
@@ -515,6 +543,34 @@ void printDataItem(DataItem* item) {
 			item->pval);
 }
 
+/*
+ * Prints the marked heap
+ */
+void printMarkedHeap() {
+	uint8_t* blockPointer = HeapStart;
+	HeapPointer heapPointer;
+	int i = 0;
+
+	printf("\n--- printing marked heap (%p to %p) ---\n", HeapStart, HeapEnd);
+	while (blockPointer < HeapEnd) {
+		heapPointer = heapPointerFromBlockPointer(blockPointer);
+
+		char kind[5];
+		readKind(heapPointer, kind);
+
+		printf("%i:\t%p (%i bytes)\t-\t%s - %s\n",
+				i,
+				blockPointer,
+				blockSizeFromBlockPointer(blockPointer),
+				kind,
+				(markBitIsSet(heapPointer)? "marked" : "not marked"));
+
+		blockPointer += blockSizeFromBlockPointer(blockPointer);
+		++i;
+	}
+	printf("\n");
+
+}
 
 /* This implements garbage collection.
    It should be called when
@@ -542,14 +598,17 @@ void gc() {
 
 	    if (wasHeapPointer) {
 
-		    char kind[5];
+		    /*char kind[5];
 		    readKind(heapPointer, kind);
-		    /*printf("Kind is %s\n", kind);*/
+		    printf("Kind is %s\n", kind);*/
 		    mark(heapPointer);
 	    }
 	    
 	    ++stackPointer;
     }
+
+    printMarkedHeap();
+
     sweep();
 }
 
