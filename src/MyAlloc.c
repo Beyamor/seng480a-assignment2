@@ -122,12 +122,20 @@ uint8_t* heapPointerFromBlockPointer(uint8_t* blockPointer) {
 }
 
 /*
+ * Gets size pointer from block pointer
+ */
+uint32_t* blockSizePtrFromBlockPointer(uint8_t* blockPointer) {
+    return ((uint32_t*)blockPointer);
+}
+
+/*
  * Gets the block size from a block pointer
  */
 uint32_t blockSizeFromBlockPointer(uint8_t* blockPointer) {
 
-	return *((uint32_t*)blockPointer);
+	return *blockSizePtrFromBlockPointer(blockPointer);
 }
+
 
 /*
  * Check whether a pointer actually points to a value in the heap
@@ -472,20 +480,27 @@ void mark(HeapPointer heapPointer) {
 	}
 }
 
-/*
- * Sweeps marked blocks of heap into Free List
- */
-void sweep() {
-    FreeStorageBlock* heapPointer = HeapStart;
-    while (heapPointer < HeapEnd) {
-        if (heapPointer->size & MARK_SIZE_BIT == 0) {
-            MyHeapFree(heapPointer);    
+/* 
+ * Sweeps marked blocks of heap into Free List 
+ */ 
+void sweep() { 
+    uint8_t* blockPointer = HeapStart;
+    uint8_t* heapPointer;
+
+    while (blockPointer < HeapEnd) {
+        heapPointer = heapPointerFromBlockPointer(blockPointer);
+        if ((*blockSizePtrFromBlockPointer(blockPointer) & MARK_SIZE_BIT) == 0) {
+            printf("sweepfree\n");
+            MyHeapFree(heapPointer);
         }
         else {
-            heapPointer->size & ~MARK_SIZE_BIT;
+            printf("notfree\n");
+            *blockSizePtrFromBlockPointer(blockPointer) = *blockSizePtrFromBlockPointer(blockPointer) & ~MARK_SIZE_BIT;
+            printf("aftersmee\n");
+            //printf("heapstart. %i , heapEnd: %i , heapPointer: %i \n",HeapStart, HeapEnd, heapPointer); 
+           // printf("heapPointer->size %u ", heapPointer.size); 
         }
-        // heapPointer = heapPointer + size + offset + data
-        heapPointer = heapPointer + sizeof(uint32_t) + sizeof(int32_t) + heapPointer->size;
+        blockPointer += blockSizeFromBlockPointer(blockPointer);
     }
 }
 
