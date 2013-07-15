@@ -218,7 +218,7 @@ int isHeapPointer(HeapPointer pointer) {
  */
 extern void* MyHeapAllocWrapper(char* file, int line, int size) {
 
-	printf(">>> Invoking MyHeapAlloc in %s line %i\n", file, line);
+	//printf(">>> Invoking MyHeapAlloc in %s line %i\n", file, line);
 	return _MyHeapAlloc(size);
 }
 
@@ -522,13 +522,7 @@ void sweep() {
 	char kind[5];
 	readKind(heapPointer, kind);
 
-	// TODO actually get from instance to class
-        if (!markBitIsSet(heapPointer) && getKind(heapPointer) != CODE_CLAS) {
-
-		printf("freeing a %s at %p\n", kind, blockPointer);
-
-		if (getKind(heapPointer) == CODE_CLAS)
-			printf("holy h*ck, we're freeing a class\n");
+        if (!markBitIsSet(heapPointer)) {
 
             MyHeapFree(REAL_HEAP_POINTER(heapPointer));
         }
@@ -635,8 +629,6 @@ void gc() {
     markClasses();
     mark(MAKE_HEAP_REFERENCE(Fake_System_Out)); // Uh, a special case I guess
     
-    printMarkedHeap();
-
     sweep();
 }
 
