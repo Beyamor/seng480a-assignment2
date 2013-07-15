@@ -366,6 +366,35 @@ void setMarkBit(HeapPointer heapPointer) {
 	*blockSizePtrFromHeapPtr(heapPointer) |= MARK_SIZE_BIT;
 }
 
+void mark(HeapPointer heapPointer);
+
+/*
+ * Marks a class type
+ */
+void markClassType(ClassType* class) {
+
+	// if it's not an array type
+	if (!class->isArrayType) {
+
+		// go through all of its static fields
+		// TODO check if class.cf.fields_count is actually static fields
+		int index = 0;
+		for (index = 0; index < class->cf->fields_count; ++index) {
+
+			// And if any look like they might be references
+			HeapPointer heapPointer = class->classField[index].pval;
+			if (isHeapPointer(heapPointer)) {
+
+				// mark them
+				mark(heapPointer);
+			}
+		}
+
+		// And then mark the parent class if it exists?
+		if (class->parent) markClassType(class->parent);
+	}
+}
+
 /*
  * Marks a block as live and recurses to other heap references.
  */
@@ -378,18 +407,63 @@ void mark(HeapPointer heapPointer) {
 
 		// and recurse
 		switch(getKind(heapPointer)) {
-			case CODE_ARRA:
-			case CODE_ARRS:
-			case CODE_CLAS:
-			case CODE_INST:
-			case CODE_STRG:
+			case CODE_ARRA: {
+
+				ArrayOfRef array = *((ArrayOfRef*)REAL_HEAP_POINTER(heapPointer));
+				int index = 0;
+				for (index = 0; index < array.size; ++index) {
+
+					mark(array.elements[index]);
+				}
+
+			} break;
+
+			case CODE_ARRS: {
+
+				// No further work for a simple array
+			} break;
+
+			case CODE_CLAS: {
+
+				ClassType *class = ((ClassType*)REAL_HEAP_POINTER(heapPointer));
+				markClassType(class);
+
+			} break; 
+
+			case CODE_INST: {
+
+				ClassInstance instance = *((ClassInstance*)REAL_HEAP_POINTER(heapPointer));
+
+				// Mark the thing's class
+				markClassType(instance.thisClass);
+
+				// Then mark all of the instance's references
+				int index = 0;
+				for (index = 0; index < instance.thisClass->numInstanceFields; ++index) {
+
+					// If any look like they might be references
+					HeapPointer heapPointer = instance.instField[index].pval;
+					if (isHeapPointer(heapPointer)) {
+
+						// mark them
+						mark(heapPointer);
+					}
+
+				}
+
+			} break;
+
+			case CODE_STRG: {
+
+				// I dunno dude. Doesn't look like String has any heap references.
+				// TODO Do we still need to get the String class?
+			} break;
+
 			case CODE_SBLD: {
 
-				char kindString[5];
-				readKind(heapPointer, kindString);
-				printf("Unhandled kind: %s\n", kindString);
-				exit(0);
-			}
+				// Ditto StringBuilder.
+				// TODO Do we still need to get the StringBuilder class?
+			} break;
 		}
 	}
 }
