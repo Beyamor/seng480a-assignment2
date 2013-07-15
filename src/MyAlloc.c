@@ -292,12 +292,12 @@ void *MyHeapAlloc( int size ) {
                 diff+minSizeNeeded, minSizeNeeded, diff);
 
 	// These, obviously, should always be heap pointers
-	HeapPointer heapPointer = MAKE_HEAP_REFERENCE((uint8_t*)blockPtr + sizeof(blockPtr->size));
+	/*HeapPointer heapPointer = MAKE_HEAP_REFERENCE((uint8_t*)blockPtr + sizeof(blockPtr->size));
 	printf("returning %p (min is %p and max is %p) - is that a heap pointer? %s\n",
 			newBlockPtr,
 			HeapStart,
 			HeapEnd,
-			(isHeapPointer(heapPointer)? "yes" : "no"));
+			(isHeapPointer(heapPointer)? "yes" : "no"));*/
     }
     blockPtr->offsetToNextBlock = 0;  /* remove this info from the returned block */
     totalBytesRequested += minSizeNeeded;
@@ -508,24 +508,24 @@ void gc() {
     DataItem* stackPointer = JVM_Stack + 1; // skip the bottom of the stack (deadbeef)
     while (stackPointer <= JVM_Top) {
 
-	    printf("stack pointer is %p, stack start is %p, top is %p\n", stackPointer, JVM_Stack, JVM_Top);
+	    /*printf("stack pointer is %p, stack start is %p, top is %p\n", stackPointer, JVM_Stack, JVM_Top);*/
 	    HeapPointer heapPointer = stackPointer->pval;
 	    int wasHeapPointer = isHeapPointer(heapPointer);
 
-	    printf("heapPointer is %p and HeapStart is %p and HeapEnd is %p\n",
-			    REAL_HEAP_POINTER(heapPointer), HeapStart, HeapEnd);
+	    /*printf("heapPointer is %p and HeapStart is %p and HeapEnd is %p\n",
+			    REAL_HEAP_POINTER(heapPointer), HeapStart, HeapEnd);*/
 
-	    printDataItem(stackPointer);
+	    /*printDataItem(stackPointer);*/
 
-	    printf("%p is %sa heap pointer\n",
+	    /*printf("%p is %sa heap pointer\n",
 			    REAL_HEAP_POINTER(heapPointer),
-			    (wasHeapPointer? "":"not "));
+			    (wasHeapPointer? "":"not "));*/
 
 	    if (wasHeapPointer) {
 
 		    char kind[5];
 		    readKind(heapPointer, kind);
-		    printf("Kind is %s\n", kind);
+		    /*printf("Kind is %s\n", kind);*/
 		    mark(heapPointer);
 	    }
 	    
