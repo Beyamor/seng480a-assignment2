@@ -16,7 +16,11 @@ extern uint8_t *HeapStart, *HeapEnd;
 extern HeapPointer MaxHeapPtr;
 
 extern void InitMyAlloc( int HeapSize );
-extern void *MyHeapAlloc( int size );
+
+extern void *_MyHeapAlloc( int size );
+extern void* MyHeapAllocWrapper(char* file, int line, int size);
+#define MyHeapAlloc(size) MyHeapAllocWrapper(__FILE__, __LINE__, size)
+
 extern void gc();
 extern void PrintHeapUsageStatistics();
 

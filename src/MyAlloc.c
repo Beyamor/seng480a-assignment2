@@ -213,6 +213,15 @@ int isHeapPointer(HeapPointer pointer) {
 	return 1;
 }
 
+/*
+ * Debug helper to show where MyHeapAlloc is invoked
+ */
+extern void* MyHeapAllocWrapper(char* file, int line, int size) {
+
+	printf(">>> Invoking MyHeapAlloc in %s line %i\n", file, line);
+	return _MyHeapAlloc(size);
+}
+
 /* Returns a pointer to a block with at least size bytes available,
    and initialized to hold zeros.
    Notes:
@@ -226,7 +235,7 @@ int isHeapPointer(HeapPointer pointer) {
    5. The implementation of MyAlloc contains redundant tests to
       verify that the free list blocks contain plausible info.
 */
-void *MyHeapAlloc( int size ) {
+void *_MyHeapAlloc( int size ) {
     /* we need size bytes plus more for the size field that precedes
        the block in memory, and we round up to a multiple of 4 */
     int offset, diff, blocksize;
@@ -344,7 +353,7 @@ static void MyHeapFree(void *p) {
         fprintf(stderr, "bad call to MyHeapFree -- invalid block\n");
 	    if (blockSize < MINBLOCKSIZE) printf("\tblock size %i is smaller than %i\n", blockSize, MINBLOCKSIZE);
 	    if (p1 + blockSize >= HeapEnd) printf("\t%p (size %i) is past the end of the heap %p\n", p1 + blockSize, blockSize, HeapEnd);
-	    if (blockSize & 3 != 0) printf("\t block size is a bad multiple %i\n", blockSize & 3);
+	    if ((blockSize & 3) != 0) printf("\t block size is a bad multiple %i\n", blockSize & 3);
         exit(1);
     }
     /* link the block into the free list at the front */
@@ -572,6 +581,48 @@ void printMarkedHeap() {
 
 }
 
+/*
+ * Mark the things in the stack
+ */
+void markStack() {
+
+	DataItem* stackPointer = JVM_Stack + 1; // skip the bottom of the stack (deadbeef)
+
+	while (stackPointer <= JVM_Top) {
+
+		HeapPointer heapPointer = stackPointer->pval;
+		int wasHeapPointer = isHeapPointer(heapPointer);
+
+		if (wasHeapPointer) {
+			mark(heapPointer);
+		}
+
+		++stackPointer;
+	}
+}
+
+/*
+ * Mark the classes in the heap
+ */
+void markClasses() {
+
+	uint8_t* blockPointer = HeapStart;
+	HeapPointer heapPointer;
+
+	while (blockPointer < HeapEnd) {
+
+		heapPointer = heapPointerFromBlockPointer(blockPointer);
+
+		if (getKind(heapPointer) == CODE_CLAS) {
+
+			mark(heapPointer);
+		}
+
+		blockPointer += blockSizeFromBlockPointer(blockPointer);
+	}
+
+}
+
 /* This implements garbage collection.
    It should be called when
    (a) MyAlloc cannot satisfy a request for a block of memory, or
@@ -580,33 +631,10 @@ void printMarkedHeap() {
 void gc() {
     gcCount++;
 
-    DataItem* stackPointer = JVM_Stack + 1; // skip the bottom of the stack (deadbeef)
-    while (stackPointer <= JVM_Top) {
-
-	    /*printf("stack pointer is %p, stack start is %p, top is %p\n", stackPointer, JVM_Stack, JVM_Top);*/
-	    HeapPointer heapPointer = stackPointer->pval;
-	    int wasHeapPointer = isHeapPointer(heapPointer);
-
-	    /*printf("heapPointer is %p and HeapStart is %p and HeapEnd is %p\n",
-			    REAL_HEAP_POINTER(heapPointer), HeapStart, HeapEnd);*/
-
-	    /*printDataItem(stackPointer);*/
-
-	    /*printf("%p is %sa heap pointer\n",
-			    REAL_HEAP_POINTER(heapPointer),
-			    (wasHeapPointer? "":"not "));*/
-
-	    if (wasHeapPointer) {
-
-		    /*char kind[5];
-		    readKind(heapPointer, kind);
-		    printf("Kind is %s\n", kind);*/
-		    mark(heapPointer);
-	    }
-	    
-	    ++stackPointer;
-    }
-
+    markStack();
+    markClasses();
+    mark(MAKE_HEAP_REFERENCE(Fake_System_Out)); // Uh, a special case I guess
+    
     printMarkedHeap();
 
     sweep();
