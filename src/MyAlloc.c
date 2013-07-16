@@ -490,15 +490,10 @@ void sweep() {
     while (blockPointer < HeapEnd) {
         heapPointer = heapPointerFromBlockPointer(blockPointer);
         if ((*blockSizePtrFromBlockPointer(blockPointer) & MARK_SIZE_BIT) == 0) {
-            printf("sweepfree\n");
             MyHeapFree(heapPointer);
         }
         else {
-            printf("notfree\n");
             *blockSizePtrFromBlockPointer(blockPointer) = *blockSizePtrFromBlockPointer(blockPointer) & ~MARK_SIZE_BIT;
-            printf("aftersmee\n");
-            //printf("heapstart. %i , heapEnd: %i , heapPointer: %i \n",HeapStart, HeapEnd, heapPointer); 
-           // printf("heapPointer->size %u ", heapPointer.size); 
         }
         blockPointer += blockSizeFromBlockPointer(blockPointer);
     }
