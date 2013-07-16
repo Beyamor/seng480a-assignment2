@@ -11,8 +11,11 @@
     // MyHeapAlloc should precede the other
     [] Visually inspect calls to MyHeapAlloc to verify situation not present
 [] gc function updates variables
-    [] gcCount -> each time gc occurs
+    [x] gcCount -> each time gc occurs
     [] totalBytesRecovered -> total number of bytes to freelist by all GC's
     [] totalBlocksRecovered -> count of the blocks discovered unused in all GC's
 [] JVM_Top off by 1 in mark
 [] 214 nigels off by one field here 
+[] test
+
+[[ testing again
