@@ -316,6 +316,9 @@ void *MyHeapAlloc( int size ) {
 
 /* When garbage collection is implemented, this function should never
    be called from outside the current file.
+   // TODO How do you feel about embedding questions in CODE?
+   // QUEST Couldn't you just make the dang function private instead of 
+            asking the user to not call it externally? #CProgramming
    This implementation checks that p is plausible and that the block of
    memory referenced by p holds a plausible size field.
 */
@@ -333,6 +336,9 @@ static void MyHeapFree(void *p) {
     /* now check the size field for validity */
     blockSize = *(uint32_t*)p1;
     if (blockSize < MINBLOCKSIZE || (p1 + blockSize) >= HeapEnd || (blockSize & 3) != 0) {
+        fprintf(stdout,"blocksize: %d ; MINBLOCKSIZE: %d ; p1: %d\n", blockSize, MINBLOCKSIZE, p1);
+        fprintf(stdout,"(p1 + blocksize): %d ; HeapEnd: %d\n", p1 + blockSize, HeapEnd);
+        fprintf(stdout,"(blockSize & 3): %d\n", blockSize & 3);
         fprintf(stderr, "bad call to MyHeapFree -- invalid block\n");
         exit(1);
     }
