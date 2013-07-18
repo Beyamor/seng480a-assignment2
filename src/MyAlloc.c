@@ -50,12 +50,12 @@ uint8_t *HeapStart, *HeapEnd;
 HeapPointer MaxHeapPtr;
 
 static int offsetToFirstBlock = -1;
-static long totalBytesRequested = 0;
-static int numAllocations = 0;
-static int gcCount = 0;
+static long totalBytesRequested = 0;    // Little more every time we MyHeapAlloc
+static int numAllocations = 0;          // How many times, in total
+static int gcCount = 0;                 //                 in total
 static long totalBytesRecovered = 0;
-static int totalBlocksRecovered = 0;
-static int searchCount = 0;
+static int totalBlocksRecovered = 0;    
+static int searchCount = 0;             // We gotta search for a block with enough space 
 
 static void *maxAddr = NULL;    // used by SafeMalloc, etc
 static void *minAddr = NULL;
@@ -631,6 +631,8 @@ char *SafeStrdup( char *s ) {
 
 /*
  * Free byte-aligned non-NULL pointers, that are in range
+ * QUEST: What would you call the MAGIC_NUMBER to replace 0x7 ?
+ *          i.e. 0x7 is a concept, not the number 7
  */
 void SafeFree( void *p ) {
     if (p == NULL || ((int)p & 0x7) != 0) {
