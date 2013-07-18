@@ -61,7 +61,9 @@ static void *maxAddr = NULL;    // used by SafeMalloc, etc
 static void *minAddr = NULL;
 
 
-/* Allocate the Java heap and initialize the free list */
+/*
+ * Allocate the Java heap and initialize the free list 
+ */
 void InitMyAlloc( int HeapSize ) {
     FreeStorageBlock *FreeBlock;
 
@@ -356,6 +358,10 @@ int jvmStackHeight() {
 	return (int)(JVM_Top - JVM_Stack);
 }
 
+/*
+ * BlockSize pointer is just a little bit before a Heap Pointer.
+ * This function returns that BlockSize Pointer
+ */
 uint32_t* blockSizePtrFromHeapPtr(HeapPointer heapPointer) {
 
 	// Uh, let's see
@@ -555,7 +561,9 @@ void gc() {
 }
 
 
-/* Report on heap memory usage */
+/* 
+ * Report on heap memory usage 
+ */
 void PrintHeapUsageStatistics() {
     printf("\nHeap Usage Statistics\n=====================\n\n");
     printf("  Number of blocks allocated = %d\n", numAllocations);
@@ -576,6 +584,7 @@ void PrintHeapUsageStatistics() {
 
 /*
  * Adjust minAddr and maxAddr to contain pointer p
+ * QUEST - Is there a more apt word than 'contain' - Thought I saw something in FlashPunk...
  */
 static void *trackHeapArea( void *p ) {
     if (p > maxAddr)
@@ -585,12 +594,16 @@ static void *trackHeapArea( void *p ) {
     return p;
 }
 
-
+/*
+ * Allocate one chunk 'o memory of given size
+ */
 void *SafeMalloc( int size ) {
     return SafeCalloc(1,size);
 }
 
-
+/*
+ * Wraps calloc(n,size) but tracks heap area as well
+ */
 void *SafeCalloc( int ncopies, int size ) {
     void *result;
     result = calloc(ncopies,size);
@@ -602,7 +615,9 @@ void *SafeCalloc( int ncopies, int size ) {
     return result;    
 }
 
-
+/*
+ * Copy a string into a newly created string
+ */
 char *SafeStrdup( char *s ) {
     char *r;
     int len;
@@ -614,7 +629,9 @@ char *SafeStrdup( char *s ) {
     return r;
 }
 
-
+/*
+ * Free byte-aligned non-NULL pointers, that are in range
+ */
 void SafeFree( void *p ) {
     if (p == NULL || ((int)p & 0x7) != 0) {
         fprintf(stderr, "Fatal error: invalid parameter passed to SafeFree\n");
