@@ -514,6 +514,29 @@ void mark(HeapPointer heapPointer) {
 	}
 }
 
+/*
+ * Checks if a block pointer is in the free list
+ */
+int isInFreeList(uint8_t* block) {
+
+	int offset;
+	uint8_t* freeBlock;
+
+	offset = offsetToFirstBlock;
+
+	while (offset >= 0) {
+
+		freeBlock = HeapStart + offset;
+
+		if (freeBlock == block)
+			return 1;
+
+		offset = ((FreeStorageBlock*)freeBlock)->offsetToNextBlock;
+	}
+
+	return 0;
+}
+
 /* 
  * Sweeps marked blocks of heap into Free List 
  */ 
@@ -529,7 +552,12 @@ void sweep() {
 
         if (!markBitIsSet(heapPointer)) {
 
-            MyHeapFree(REAL_HEAP_POINTER(heapPointer));
+		// Make sure it's not in the free list
+		// so we can avoid cycles
+		if (!isInFreeList(blockPointer)) {
+			
+			MyHeapFree(REAL_HEAP_POINTER(heapPointer));
+		}
         }
         else {
 
@@ -633,7 +661,7 @@ void gc() {
     markStack();
     markClasses();
     mark(MAKE_HEAP_REFERENCE(Fake_System_Out)); // Uh, a special case I guess
-    
+
     sweep();
 }
 
