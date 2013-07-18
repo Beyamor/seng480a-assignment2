@@ -61,7 +61,9 @@ static void *maxAddr = NULL;    // used by SafeMalloc, etc
 static void *minAddr = NULL;
 
 
-/* Allocate the Java heap and initialize the free list */
+/*
+ * Allocate the Java heap and initialize the free list 
+ */
 void InitMyAlloc( int HeapSize ) {
     FreeStorageBlock *FreeBlock;
 
@@ -333,6 +335,9 @@ void *_MyHeapAlloc( int size ) {
 
 /* When garbage collection is implemented, this function should never
    be called from outside the current file.
+   // TODO How do you feel about embedding questions in CODE?
+   // QUEST Couldn't you just make the dang function private instead of 
+            asking the user to not call it externally? #CProgramming
    This implementation checks that p is plausible and that the block of
    memory referenced by p holds a plausible size field.
 */
@@ -350,6 +355,9 @@ static void MyHeapFree(void *p) {
     /* now check the size field for validity */
     blockSize = *(uint32_t*)p1;
     if (blockSize < MINBLOCKSIZE || (p1 + blockSize) >= HeapEnd || (blockSize & 3) != 0) {
+        fprintf(stdout,"blocksize: %d ; MINBLOCKSIZE: %d ; p1: %d\n", blockSize, MINBLOCKSIZE, p1);
+        fprintf(stdout,"(p1 + blocksize): %d ; HeapEnd: %d\n", p1 + blockSize, HeapEnd);
+        fprintf(stdout,"(blockSize & 3): %d\n", blockSize & 3);
         fprintf(stderr, "bad call to MyHeapFree -- invalid block\n");
 	    if (blockSize < MINBLOCKSIZE) printf("\tblock size %i is smaller than %i\n", blockSize, MINBLOCKSIZE);
 	    if (p1 + blockSize >= HeapEnd) printf("\t%p (size %i) is past the end of the heap %p\n", p1 + blockSize, blockSize, HeapEnd);
@@ -370,6 +378,10 @@ int jvmStackHeight() {
 	return (int)(JVM_Top - JVM_Stack);
 }
 
+/*
+ * BlockSize pointer is just a little bit before a Heap Pointer.
+ * This function returns that BlockSize Pointer
+ */
 uint32_t* blockSizePtrFromHeapPtr(HeapPointer heapPointer) {
 
 	// Uh, let's see
@@ -633,7 +645,9 @@ void gc() {
 }
 
 
-/* Report on heap memory usage */
+/* 
+ * Report on heap memory usage 
+ */
 void PrintHeapUsageStatistics() {
     printf("\nHeap Usage Statistics\n=====================\n\n");
     printf("  Number of blocks allocated = %d\n", numAllocations);
@@ -652,7 +666,10 @@ void PrintHeapUsageStatistics() {
     }
 }
 
-
+/*
+ * Adjust minAddr and maxAddr to contain pointer p
+ * QUEST - Is there a more apt word than 'contain' - Thought I saw something in FlashPunk...
+ */
 static void *trackHeapArea( void *p ) {
     if (p > maxAddr)
         maxAddr = p;
@@ -661,12 +678,16 @@ static void *trackHeapArea( void *p ) {
     return p;
 }
 
-
+/*
+ * Allocate one chunk 'o memory of given size
+ */
 void *SafeMalloc( int size ) {
     return SafeCalloc(1,size);
 }
 
-
+/*
+ * Wraps calloc(n,size) but tracks heap area as well
+ */
 void *SafeCalloc( int ncopies, int size ) {
     void *result;
     result = calloc(ncopies,size);
@@ -678,7 +699,9 @@ void *SafeCalloc( int ncopies, int size ) {
     return result;    
 }
 
-
+/*
+ * Copy a string into a newly created string
+ */
 char *SafeStrdup( char *s ) {
     char *r;
     int len;
@@ -690,7 +713,9 @@ char *SafeStrdup( char *s ) {
     return r;
 }
 
-
+/*
+ * Free byte-aligned non-NULL pointers, that are in range
+ */
 void SafeFree( void *p ) {
     if (p == NULL || ((int)p & 0x7) != 0) {
         fprintf(stderr, "Fatal error: invalid parameter passed to SafeFree\n");
