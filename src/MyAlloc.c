@@ -574,7 +574,9 @@ void PrintHeapUsageStatistics() {
     }
 }
 
-
+/*
+ * Adjust minAddr and maxAddr to contain pointer p
+ */
 static void *trackHeapArea( void *p ) {
     if (p > maxAddr)
         maxAddr = p;
