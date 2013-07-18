@@ -354,14 +354,7 @@ static void MyHeapFree(void *p) {
     p1 -= sizeof(blockPtr->size);
     /* now check the size field for validity */
     blockSize = *(uint32_t*)p1;
-    if (blockSize < MINBLOCKSIZE || (p1 + blockSize) >= HeapEnd || (blockSize & 3) != 0) {
-        fprintf(stdout,"blocksize: %d ; MINBLOCKSIZE: %d ; p1: %d\n", blockSize, MINBLOCKSIZE, p1);
-        fprintf(stdout,"(p1 + blocksize): %d ; HeapEnd: %d\n", p1 + blockSize, HeapEnd);
-        fprintf(stdout,"(blockSize & 3): %d\n", blockSize & 3);
-        fprintf(stderr, "bad call to MyHeapFree -- invalid block\n");
-	    if (blockSize < MINBLOCKSIZE) printf("\tblock size %i is smaller than %i\n", blockSize, MINBLOCKSIZE);
-	    if (p1 + blockSize >= HeapEnd) printf("\t%p (size %i) is past the end of the heap %p\n", p1 + blockSize, blockSize, HeapEnd);
-	    if ((blockSize & 3) != 0) printf("\t block size is a bad multiple %i\n", blockSize & 3);
+    if (blockSize < MINBLOCKSIZE || (p1 + blockSize) > HeapEnd || (blockSize & 3) != 0) {
         exit(1);
     }
     /* link the block into the free list at the front */
@@ -528,7 +521,7 @@ void sweep() {
     uint8_t* blockPointer = HeapStart;
     HeapPointer heapPointer;
 
-    while (blockPointer + blockSizeFromBlockPointer(blockPointer) < HeapEnd) {
+    while (blockPointer < HeapEnd) {
         heapPointer = heapPointerFromBlockPointer(blockPointer);
 
 	char kind[5];
