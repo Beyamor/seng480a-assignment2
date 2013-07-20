@@ -215,15 +215,6 @@ int isHeapPointer(HeapPointer pointer) {
 	return 1;
 }
 
-/*
- * Debug helper to show where MyHeapAlloc is invoked
- */
-extern void* MyHeapAllocWrapper(char* file, int line, int size) {
-
-	//printf(">>> Invoking MyHeapAlloc in %s line %i\n", file, line);
-	return _MyHeapAlloc(size);
-}
-
 /* Returns a pointer to a block with at least size bytes available,
    and initialized to hold zeros.
    Notes:
@@ -237,7 +228,7 @@ extern void* MyHeapAllocWrapper(char* file, int line, int size) {
    5. The implementation of MyAlloc contains redundant tests to
       verify that the free list blocks contain plausible info.
 */
-void *_MyHeapAlloc( int size ) {
+void *MyHeapAlloc( int size ) {
     /* we need size bytes plus more for the size field that precedes
        the block in memory, and we round up to a multiple of 4 */
     int offset, diff, blocksize;
@@ -474,20 +465,21 @@ void mark(HeapPointer heapPointer) {
 
 			case CODE_INST: {
 
-				ClassInstance instance = *((ClassInstance*)REAL_HEAP_POINTER(heapPointer));
+				ClassInstance *instance = ((ClassInstance*)REAL_HEAP_POINTER(heapPointer));
 
-				// TODO figure out why we might not have a thisClass
-				if (instance.thisClass) {
+				if (instance->thisClass) {
 
 					// Mark the thing's class
-					markClassType(instance.thisClass);
+					markClassType(instance->thisClass);
 
 					// Then mark all of the instance's references
+					int *sizeP = (int*)instance - 1; /* pointer to the size prefix */
+					int numElements = (*sizeP - ((u1*)&instance->instField - (u1*)instance));
 					int index = 0;
-					for (index = 0; index < instance.thisClass->numInstanceFields; ++index) {
+					for (index = 0; index < numElements; ++index) {
 
 						// If any look like they might be references
-						HeapPointer heapPointer = instance.instField[index].pval;
+						HeapPointer heapPointer = instance->instField[index].pval;
 						if (isHeapPointer(heapPointer)) {
 
 							// mark them
