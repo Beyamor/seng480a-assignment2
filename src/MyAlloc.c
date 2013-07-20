@@ -134,7 +134,7 @@ HeapPointer heapPointerFromBlockPointer(uint8_t* blockPointer) {
 /*
  * Gets size pointer from block pointer
  */
-uint32_t* blockSizePtrFromBlockPointer(uint8_t* blockPointer) {
+uint32_t* blockSizePointerFromBlockPointer(uint8_t* blockPointer) {
     return ((uint32_t*)blockPointer);
 }
 
@@ -143,7 +143,7 @@ uint32_t* blockSizePtrFromBlockPointer(uint8_t* blockPointer) {
  */
 uint32_t blockSizeFromBlockPointer(uint8_t* blockPointer) {
 
-	return *blockSizePtrFromBlockPointer(blockPointer) & ~MARK_SIZE_BIT;
+	return *blockSizePointerFromBlockPointer(blockPointer) & ~MARK_SIZE_BIT;
 }
 
 
@@ -366,7 +366,7 @@ int jvmStackHeight() {
  * BlockSize pointer is just a little bit before a Heap Pointer.
  * This function returns that BlockSize Pointer
  */
-uint32_t* blockSizePtrFromHeapPtr(HeapPointer heapPointer) {
+uint32_t* blockSizePointerFromHeapPtr(HeapPointer heapPointer) {
 
 	// Uh, let's see
 	// Move back from heap pointer the size of, uh, the size field
@@ -375,11 +375,42 @@ uint32_t* blockSizePtrFromHeapPtr(HeapPointer heapPointer) {
 }
 
 /*
+ * Gets the offset for a block
+ */
+int32_t getBlockOffset(uint8_t* block) {
+
+	return ((FreeStorageBlock*)block)->offsetToNextBlock;
+}
+
+/*
+ * Sets the offset for a block
+ */
+void setBlockOffset(uint8_t* block, int32_t offset) {
+
+	((FreeStorageBlock*)block)->offsetToNextBlock = offset;
+}
+
+/*
+ * Gets the pointer to the next block for some block
+ * Note that no check is down to see if the block is free
+ * Returns null if there is no next block
+ */
+uint8_t* getNextBlock(uint8_t* block) {
+
+	int32_t offset = getBlockOffset(block);
+
+	if (offset == -1)
+		return 0;
+	else
+		return HeapStart + offset;
+}
+
+/*
  * Checks if the mark bit is set
  */
 int markBitIsSet(HeapPointer heapPointer) {
 
-	return *blockSizePtrFromHeapPtr(heapPointer) & MARK_SIZE_BIT;
+	return *blockSizePointerFromHeapPtr(heapPointer) & MARK_SIZE_BIT;
 }
 
 /*
@@ -387,7 +418,7 @@ int markBitIsSet(HeapPointer heapPointer) {
  */
 void setMarkBit(HeapPointer heapPointer) {
 
-	*blockSizePtrFromHeapPtr(heapPointer) |= MARK_SIZE_BIT;
+	*blockSizePointerFromHeapPtr(heapPointer) |= MARK_SIZE_BIT;
 }
 
 /*
@@ -395,7 +426,7 @@ void setMarkBit(HeapPointer heapPointer) {
  */
 void unsetMarkBit(HeapPointer heapPointer) {
 
-	*blockSizePtrFromHeapPtr(heapPointer) &= ~MARK_SIZE_BIT;
+	*blockSizePointerFromHeapPtr(heapPointer) &= ~MARK_SIZE_BIT;
 }
 
 
@@ -529,35 +560,115 @@ int isInFreeList(uint8_t* block) {
 	return 0;
 }
 
+/*
+ * Finds the previous block in the free list
+ * returns null if there is no previous block
+ */
+uint8_t* findPreviousBlock(uint8_t* blockToFind) {
+
+	uint8_t *previousBlock = HeapStart + offsetToFirstBlock,
+		*nextBlock;
+
+	while (previousBlock) {
+
+		nextBlock = getNextBlock(previousBlock);
+
+		if (nextBlock == blockToFind)
+			return previousBlock;
+
+		previousBlock = nextBlock;
+	}
+
+	return 0;
+}
+
+/*
+ * Merges consecutive blocks in the free list.
+ */
+void mergeFreeList() {
+
+	int previousBlockExists;
+	int32_t offsetToNextBlock;
+	uint8_t *firstBlock, *secondBlock, *previousBlock;
+
+	// Okay. Let's see.
+	firstBlock = HeapStart;
+	while (firstBlock < HeapEnd) {
+
+		// If the current block is free
+		if (isInFreeList(firstBlock)) {
+
+			secondBlock = firstBlock + blockSizeFromBlockPointer(firstBlock);
+
+			// and the next block is free
+			while (isInFreeList(secondBlock)) {
+
+				// basically, we gotta take the second block outta the list
+				// So, like, hook the previous block up to the next one
+				// and the next one up to the previous one
+				// Getting the next block is easy
+				offsetToNextBlock = getBlockOffset(secondBlock);
+
+				// But we may or may not have a previous block
+				// since the block we're looking at could be the head of the list
+				previousBlock = findPreviousBlock(secondBlock);
+				previousBlockExists = (previousBlock != 0);
+
+				// If the previous block exists, set it to the next block
+				if (previousBlockExists) {
+
+					setBlockOffset(previousBlock, offsetToNextBlock);
+				}
+
+				// Otherwise, set the next block to the head of the list
+				else {
+
+					offsetToFirstBlock = offsetToNextBlock;
+				}
+				
+				// Add the second block to the first
+				*blockSizePointerFromBlockPointer(firstBlock) += blockSizeFromBlockPointer(secondBlock);
+
+				// And continue with the next block
+				secondBlock = firstBlock + blockSizeFromBlockPointer(firstBlock);
+			}
+		}
+
+		firstBlock += blockSizeFromBlockPointer(firstBlock);
+	}
+}
+
 /* 
  * Sweeps marked blocks of heap into Free List 
  */ 
 void sweep() { 
-    uint8_t* blockPointer = HeapStart;
-    HeapPointer heapPointer;
+	uint8_t* blockPointer = HeapStart;
+	HeapPointer heapPointer;
 
-    while (blockPointer < HeapEnd) {
-        heapPointer = heapPointerFromBlockPointer(blockPointer);
+	while (blockPointer < HeapEnd) {
+		heapPointer = heapPointerFromBlockPointer(blockPointer);
 
-	char kind[5];
-	readKind(heapPointer, kind);
+		char kind[5];
+		readKind(heapPointer, kind);
 
-        if (!markBitIsSet(heapPointer)) {
+		if (!markBitIsSet(heapPointer)) {
 
-		// Make sure it's not in the free list
-		// so we can avoid cycles
-		if (!isInFreeList(blockPointer)) {
-			
-			MyHeapFree(REAL_HEAP_POINTER(heapPointer));
+			// Make sure it's not in the free list
+			// so we can avoid cycles
+			if (!isInFreeList(blockPointer)) {
+
+				MyHeapFree(REAL_HEAP_POINTER(heapPointer));
+			}
 		}
-        }
-        else {
+		else {
 
-	    unsetMarkBit(heapPointer);
-        }
+			unsetMarkBit(heapPointer);
+		}
 
-        blockPointer += blockSizeFromBlockPointer(blockPointer);
-    }
+		blockPointer += blockSizeFromBlockPointer(blockPointer);
+	}
+
+	mergeFreeList();
 }
 
 /*
@@ -646,15 +757,15 @@ void markClasses() {
    It should be called when
    (a) MyAlloc cannot satisfy a request for a block of memory, or
    (b) when invoked by the call System.gc() in the Java program.
-*/
+   */
 void gc() {
-    gcCount++;
+	gcCount++;
 
-    markStack();
-    markClasses();
-    mark(MAKE_HEAP_REFERENCE(Fake_System_Out)); // Uh, a special case I guess
+	markStack();
+	markClasses();
+	mark(MAKE_HEAP_REFERENCE(Fake_System_Out)); // Uh, a special case I guess
 
-    sweep();
+	sweep();
 }
 
 
@@ -662,21 +773,21 @@ void gc() {
  * Report on heap memory usage 
  */
 void PrintHeapUsageStatistics() {
-    printf("\nHeap Usage Statistics\n=====================\n\n");
-    printf("  Number of blocks allocated = %d\n", numAllocations);
-    if (numAllocations > 0) {
-        float avgBlockSize = (float)totalBytesRequested / numAllocations;
-        float avgSearch = (float)searchCount / numAllocations;
-        printf("  Average size of allocated blocks = %.2f\n", avgBlockSize);
-        printf("  Average number of blocks checked = %.2f\n", avgSearch);
-    }
-    printf("  Number of garbage collections = %d\n", gcCount);
-    if (gcCount > 0) {
-        float avgRecovery = (float)totalBytesRecovered / gcCount;
-        printf("  Total storage reclaimed = %ld\n", totalBytesRecovered);
-        printf("  Total number of blocks reclaimed = %d\n", totalBlocksRecovered);
-        printf("  Average bytes recovered per gc = %.2f\n", avgRecovery);
-    }
+	printf("\nHeap Usage Statistics\n=====================\n\n");
+	printf("  Number of blocks allocated = %d\n", numAllocations);
+	if (numAllocations > 0) {
+		float avgBlockSize = (float)totalBytesRequested / numAllocations;
+		float avgSearch = (float)searchCount / numAllocations;
+		printf("  Average size of allocated blocks = %.2f\n", avgBlockSize);
+		printf("  Average number of blocks checked = %.2f\n", avgSearch);
+	}
+	printf("  Number of garbage collections = %d\n", gcCount);
+	if (gcCount > 0) {
+		float avgRecovery = (float)totalBytesRecovered / gcCount;
+		printf("  Total storage reclaimed = %ld\n", totalBytesRecovered);
+		printf("  Total number of blocks reclaimed = %d\n", totalBlocksRecovered);
+		printf("  Average bytes recovered per gc = %.2f\n", avgRecovery);
+	}
 }
 
 /*
@@ -684,46 +795,46 @@ void PrintHeapUsageStatistics() {
  * QUEST - Is there a more apt word than 'contain' - Thought I saw something in FlashPunk...
  */
 static void *trackHeapArea( void *p ) {
-    if (p > maxAddr)
-        maxAddr = p;
-    if (p < minAddr)
-        minAddr = p;
-    return p;
+	if (p > maxAddr)
+		maxAddr = p;
+	if (p < minAddr)
+		minAddr = p;
+	return p;
 }
 
 /*
  * Allocate one chunk 'o memory of given size
  */
 void *SafeMalloc( int size ) {
-    return SafeCalloc(1,size);
+	return SafeCalloc(1,size);
 }
 
 /*
  * Wraps calloc(n,size) but tracks heap area as well
  */
 void *SafeCalloc( int ncopies, int size ) {
-    void *result;
-    result = calloc(ncopies,size);
-    if (result == NULL) {
-        fprintf(stderr, "Fatal error: memory request cannot be satisfied\n");
-        exit(1);
-    }
-    trackHeapArea(result);
-    return result;    
+	void *result;
+	result = calloc(ncopies,size);
+	if (result == NULL) {
+		fprintf(stderr, "Fatal error: memory request cannot be satisfied\n");
+		exit(1);
+	}
+	trackHeapArea(result);
+	return result;    
 }
 
 /*
  * Copy a string into a newly created string
  */
 char *SafeStrdup( char *s ) {
-    char *r;
-    int len;
+	char *r;
+	int len;
 
-    len = (s == NULL)? 0 : strlen(s);
-    r = SafeMalloc(len+1);
-    if (len > 0)
-        strcpy(r,s);
-    return r;
+	len = (s == NULL)? 0 : strlen(s);
+	r = SafeMalloc(len+1);
+	if (len > 0)
+		strcpy(r,s);
+	return r;
 }
 
 /*
@@ -732,16 +843,16 @@ char *SafeStrdup( char *s ) {
  *          i.e. 0x7 is a concept, not the number 7
  */
 void SafeFree( void *p ) {
-    if (p == NULL || ((int)p & 0x7) != 0) {
-        fprintf(stderr, "Fatal error: invalid parameter passed to SafeFree\n");
-        fprintf(stderr, "    The address was NULL or misaligned\n");
-        abort();
-    }
-    if (p >= minAddr && p <= maxAddr)
-        free(p);
-    else {
-        fprintf(stderr, "Fatal error: invalid parameter passed to SafeFree\n");
-        fprintf(stderr, "     The memory was not allocated by SafeMalloc\n");
-        abort();
-    }
+	if (p == NULL || ((int)p & 0x7) != 0) {
+		fprintf(stderr, "Fatal error: invalid parameter passed to SafeFree\n");
+		fprintf(stderr, "    The address was NULL or misaligned\n");
+		abort();
+	}
+	if (p >= minAddr && p <= maxAddr)
+		free(p);
+	else {
+		fprintf(stderr, "Fatal error: invalid parameter passed to SafeFree\n");
+		fprintf(stderr, "     The memory was not allocated by SafeMalloc\n");
+		abort();
+	}
 }
