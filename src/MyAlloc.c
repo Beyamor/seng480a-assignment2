@@ -375,6 +375,18 @@ uint32_t* blockSizePointerFromHeapPtr(HeapPointer heapPointer) {
 }
 
 /*
+ * BlockSize pointer is just a little bit before a Heap Pointer.
+ * This function returns that BlockSize Pointer
+ */
+uint8_t* blockPointerFromHeapPointer(HeapPointer heapPointer) {
+
+	// Uh, let's see
+	// Move back from heap pointer the size of, uh, the size field
+	// then return that pointer interpreted as a pointer to the size field
+	return (uint8_t*)REAL_HEAP_POINTER(heapPointer) - sizeof(uint32_t);
+}
+
+/*
  * Gets the offset for a block
  */
 int32_t getBlockOffset(uint8_t* block) {
@@ -473,11 +485,11 @@ void mark(HeapPointer heapPointer) {
 		switch(getKind(heapPointer)) {
 			case CODE_ARRA: {
 
-				ArrayOfRef array = *((ArrayOfRef*)REAL_HEAP_POINTER(heapPointer));
+				ArrayOfRef *array = (ArrayOfRef*)REAL_HEAP_POINTER(heapPointer);
 				int index = 0;
-				for (index = 0; index < array.size; ++index) {
+				for (index = 0; index < array->size; ++index) {
 
-					mark(array.elements[index]);
+					mark(array->elements[index]);
 				}
 
 			} break;
