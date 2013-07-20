@@ -1,3 +1,8 @@
+/*
+ * 	Modified by:
+ *		Tom Gibson and Colton Phillips
+ */
+
 /* InterpretLoop.c */
 
 /*
