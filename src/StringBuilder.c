@@ -90,11 +90,11 @@ void StringBuilderClass( char *methodName, char *methodDescr ) {
     }
     if (strcmp(methodName,"toString") == 0 && strcmp(methodDescr,"()Ljava/lang/String;") == 0) {
         StringBuilderInstance *sbi;
+        StringInstance *sp = MyHeapAlloc(sizeof(StringInstance));
         HeapPointer hp = JVM_Pop();
         if (hp == NULL_HEAP_REFERENCE)
             throwExceptionExternal("NullPointerException", methodName, StringBuilderName);
         sbi = REAL_HEAP_POINTER(hp);
-        StringInstance *sp = MyHeapAlloc(sizeof(StringInstance));
         sp->kind = CODE_STRG;
         sp->sval = SafeMalloc(sbi->len+1);
         memcpy(sp->sval, sbi->buffer, sbi->len+1);
