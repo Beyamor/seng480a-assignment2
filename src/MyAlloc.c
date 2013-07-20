@@ -504,10 +504,8 @@ void mark(HeapPointer heapPointer) {
 					markClassType(instance->thisClass);
 
 					// Then mark all of the instance's references
-					int *sizeP = (int*)instance - 1; /* pointer to the size prefix */
-					int numElements = (*sizeP - ((u1*)&instance->instField - (u1*)instance));
 					int index = 0;
-					for (index = 0; index < numElements; ++index) {
+					for (index = 0; index < instance->thisClass->numInstanceFields; ++index) {
 
 						// If any look like they might be references
 						HeapPointer heapPointer = instance->instField[index].pval;
