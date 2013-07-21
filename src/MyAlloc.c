@@ -357,6 +357,9 @@ static void MyHeapFree(void *p) {
     blockPtr = (FreeStorageBlock*)p1;
     blockPtr->offsetToNextBlock = offsetToFirstBlock;
     offsetToFirstBlock = p1 - HeapStart;
+
+    totalBlocksRecovered += 1;
+    totalBytesRecovered += blockSize;
 }
 
 /*
